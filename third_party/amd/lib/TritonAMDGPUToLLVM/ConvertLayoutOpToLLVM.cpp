@@ -1,6 +1,6 @@
 #include "ConvertLayoutOpToLLVM.h"
-#include "Utility.h"
 #include "TritonGPUToLLVMBase.h"
+#include "Utility.h"
 #include "triton/Dialect/TritonGPU/Transforms/Utility.h"
 
 using ::mlir::LLVM::getSharedMemoryObjectFromStruct;
@@ -9,7 +9,6 @@ using ::mlir::LLVM::linearize;
 
 using ::AMD::ConvertTritonGPUOpToLLVMPattern;
 using ::AMD::ConvertTritonGPUOpToLLVMPatternBase;
-using ::AMD::TritonGPUToLLVMTypeConverter;
 using ::mlir::LLVM::getSharedMemoryObjectFromStruct;
 using ::mlir::LLVM::getStridesFromShapeAndOrder;
 using ::mlir::triton::gpu::DotOperandEncodingAttr;
@@ -38,7 +37,7 @@ SmallVector<CoordTy> getMNCoords(Value thread, Location loc,
 
 Value convertLayout(int opIdx, Value tensor, const SharedMemoryObject &smemObj,
                     Value thread, Location loc,
-                    TritonGPUToLLVMTypeConverter *typeConverter,
+                    const LLVMTypeConverter *typeConverter,
                     ConversionPatternRewriter &rewriter, Type resultTy);
 
 } // namespace SharedToDotOperandMMAv1
@@ -48,7 +47,7 @@ Value convertLayout(int opIdx, ConversionPatternRewriter &rewriter,
                     Location loc, Value tensor,
                     DotOperandEncodingAttr bEncoding,
                     const SharedMemoryObject &smemObj,
-                    TritonGPUToLLVMTypeConverter *typeConverter, Value thread);
+                    const LLVMTypeConverter *typeConverter, Value thread);
 }
 
 #ifdef USE_ROCM
@@ -57,7 +56,7 @@ Value convertLayout(int opIdx, ConversionPatternRewriter &rewriter,
                     Location loc, Value tensor,
                     DotOperandEncodingAttr bEncoding,
                     const SharedMemoryObject &smemObj,
-                    TritonGPUToLLVMTypeConverter *typeConverter, Value thread);
+                    const LLVMTypeConverter *typeConverter, Value thread);
 } // namespace SharedToDotOperandMFMA
 #endif
 
@@ -65,7 +64,7 @@ namespace AMD {
 namespace SharedToDotOperandFMA {
 Value convertLayout(int opIdx, Value B, Value llB, BlockedEncodingAttr dLayout,
                     Value thread, Location loc,
-                    TritonGPUToLLVMTypeConverter *typeConverter,
+                    const LLVMTypeConverter *typeConverter,
                     ConversionPatternRewriter &rewriter);
 }
 } // namespace AMD
@@ -507,8 +506,7 @@ private:
 
     // Store to local shared memory
     {
-      auto inVals =
-          getTypeConverter()->unpackLLElements(loc, adaptor.getSrc(), rewriter);
+      auto inVals = unpackLLElements(loc, adaptor.getSrc(), rewriter);
       auto inIndices =
           emitIndices(loc, rewriter, srcLayout, srcTy, /*withCTAOffset*/ false);
 
@@ -555,7 +553,7 @@ private:
       }
 
       Value result =
-          getTypeConverter()->packLLElements(loc, outVals, rewriter, dstTy);
+          packLLElements(loc, getTypeConverter(), outVals, rewriter, dstTy);
       rewriter.replaceOp(op, result);
     }
 
@@ -630,8 +628,7 @@ private:
     }
     // Potentially we need to store for multiple CTAs in this replication
     auto accumNumReplicates = product<unsigned>(numReplicates);
-    auto vals =
-        getTypeConverter()->unpackLLElements(loc, adaptor.getSrc(), rewriter);
+    auto vals = unpackLLElements(loc, adaptor.getSrc(), rewriter);
     unsigned inVec = 0;
     unsigned outVec = 0;
     auto origRepShape = getRepShapeForCvtLayout(op);
@@ -695,7 +692,7 @@ private:
     }
 
     Value result =
-        getTypeConverter()->packLLElements(loc, outVals, rewriter, dstTy);
+        packLLElements(loc, getTypeConverter(), outVals, rewriter, dstTy);
     rewriter.replaceOp(op, result);
 
     return success();
@@ -730,7 +727,7 @@ private:
         dst, dstIndices, src, smemObj, elemTy, loc, rewriter);
 
     Value result =
-        getTypeConverter()->packLLElements(loc, outVals, rewriter, dstTy);
+        packLLElements(loc, getTypeConverter(), outVals, rewriter, dstTy);
     rewriter.replaceOp(op, result);
 
     return success();
@@ -828,8 +825,7 @@ private:
     RankedTensorType dstTy = op.getType();
     if (isMfmaToDotShortcut(srcTy, dstTy)) {
       // get source values
-      auto vals =
-          getTypeConverter()->unpackLLElements(loc, adaptor.getSrc(), rewriter);
+      auto vals = unpackLLElements(loc, adaptor.getSrc(), rewriter);
       unsigned elems = getTotalElemsPerThread(srcTy);
       Type elemTy =
           this->getTypeConverter()->convertType(srcTy.getElementType());
@@ -858,7 +854,7 @@ private:
         vecVals.push_back(packed);
       }
       Value view =
-          getTypeConverter()->packLLElements(loc, vecVals, rewriter, dstTy);
+          packLLElements(loc, getTypeConverter(), vecVals, rewriter, dstTy);
       rewriter.replaceOp(op, view);
       return success();
     }
@@ -880,8 +876,7 @@ private:
 
     if (isMmaToDotShortcut(srcTy, dstTy)) {
       // get source values
-      auto vals =
-          getTypeConverter()->unpackLLElements(loc, adaptor.getSrc(), rewriter);
+      auto vals = unpackLLElements(loc, adaptor.getSrc(), rewriter);
       unsigned elems = getTotalElemsPerThread(srcTy);
       Type elemTy =
           this->getTypeConverter()->convertType(srcTy.getElementType());
@@ -932,14 +927,14 @@ private:
         reorderedVals.push_back(bitcast(vecVals[i + 3], i32_ty));
       }
 
-      Value view = getTypeConverter()->packLLElements(loc, reorderedVals,
-                                                      rewriter, dstTy);
+      Value view = packLLElements(loc, getTypeConverter(), reorderedVals,
+                                  rewriter, dstTy);
       rewriter.replaceOp(op, view);
       return success();
 #else
     // TODO check if this is needed
     Value view =
-        getTypeConverter()->packLLElements(loc, vecVals, rewriter, dstTy);
+        packLLElements(loc, getTypeConverter(), vecVals, rewriter, dstTy);
     rewriter.replaceOp(op, view);
     return success();
 #endif
@@ -987,8 +982,7 @@ private:
       return success();
     }
     // get source values
-    auto vals =
-        getTypeConverter()->unpackLLElements(loc, adaptor.getSrc(), rewriter);
+    auto vals = unpackLLElements(loc, adaptor.getSrc(), rewriter);
     SmallVector<Value> retVals;
     SmallVector<unsigned> dstElementPerThread =
         triton::gpu::getElemsPerThread(dstTy);
@@ -1006,7 +1000,7 @@ private:
     }
     assert(retVals.size() == triton::gpu::getTotalElemsPerThread(dstTy));
     Value view =
-        getTypeConverter()->packLLElements(loc, retVals, rewriter, dstTy);
+        packLLElements(loc, getTypeConverter(), retVals, rewriter, dstTy);
     rewriter.replaceOp(op, view);
     return success();
   }
@@ -1061,9 +1055,8 @@ private:
 
 namespace AMD {
 void populateConvertLayoutOpToLLVMPatterns(
-    TritonGPUToLLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
-    int numWarps, ModuleAxisInfoAnalysis &axisInfoAnalysis,
-    ModuleAllocation &allocation,
+    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns, int numWarps,
+    ModuleAxisInfoAnalysis &axisInfoAnalysis, ModuleAllocation &allocation,
     ConvertTritonGPUOpToLLVMPatternBase::IndexCacheInfo &indexCacheInfo,
     PatternBenefit benefit) {
   patterns.add<ConvertLayoutOpConversion>(typeConverter, allocation,

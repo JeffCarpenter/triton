@@ -32,7 +32,6 @@ using namespace mlir::triton;
 
 namespace {
 
-using ::AMD::TritonGPUToLLVMTypeConverter;
 using ::mlir::LLVM::shflSync;
 using ::mlir::triton::gpu::DotOperandEncodingAttr;
 using ::mlir::triton::gpu::MfmaEncodingAttr;
@@ -65,13 +64,14 @@ struct DotOpMFMAConversionHelper {
   MfmaEncodingAttr mfmaLayout;
 
   ConversionPatternRewriter &rewriter;
-  TritonGPUToLLVMTypeConverter *typeConverter;
+  const LLVMTypeConverter *typeConverter;
   Location loc;
   MLIRContext *ctx{};
 
-  explicit DotOpMFMAConversionHelper(
-      MfmaEncodingAttr mfmaLayout, ConversionPatternRewriter &rewriter,
-      TritonGPUToLLVMTypeConverter *typeConverter, Location loc)
+  explicit DotOpMFMAConversionHelper(MfmaEncodingAttr mfmaLayout,
+                                     ConversionPatternRewriter &rewriter,
+                                     const LLVMTypeConverter *typeConverter,
+                                     Location loc)
       : mfmaLayout(mfmaLayout), rewriter(rewriter),
         typeConverter(typeConverter), loc(loc), ctx(mfmaLayout.getContext()) {}
 
@@ -402,7 +402,7 @@ struct DotOpMFMAConversionHelper {
     ValueTable hb = getValuesFromDotOperandLayoutStruct(
         loadedB, numRepN, numRepK, aTensorTy.getElementType());
     auto dstElemTy = dTensorTy.getElementType();
-    auto fc = typeConverter->unpackLLElements(loc, loadedC, rewriter);
+    auto fc = unpackLLElements(loc, loadedC, rewriter);
 
     unsigned warpSize = triton::gpu::getWarpSize(mfmaLayout);
     // compute number of output elements that each thread holds for one MFMA
@@ -438,7 +438,7 @@ struct DotOpMFMAConversionHelper {
     // replace with new packed result
     Type structTy = LLVM::LLVMStructType::getLiteral(
         ctx, SmallVector<Type>(fc.size(), dstElemTy));
-    Value res = typeConverter->packLLElements(loc, fc, rewriter, structTy);
+    Value res = packLLElements(loc, typeConverter, fc, rewriter, structTy);
     rewriter.replaceOp(op, res);
 
     return success();
@@ -446,7 +446,7 @@ struct DotOpMFMAConversionHelper {
 
   ValueTable getValuesFromDotOperandLayoutStruct(Value value, int n0, int n1,
                                                  Type type) const {
-    auto elems = typeConverter->unpackLLElements(loc, value, rewriter);
+    auto elems = unpackLLElements(loc, value, rewriter);
     ValueTable vals;
     for (int i = 0; i < n0; i++) {
       for (int j = 0; j < n1; j++) {
@@ -461,7 +461,7 @@ struct DotOpMFMAConversionHelper {
 
 namespace AMD {
 LogicalResult convertMFMA(triton::DotOp op, triton::DotOp::Adaptor adaptor,
-                          TritonGPUToLLVMTypeConverter *typeConverter,
+                          const LLVMTypeConverter *typeConverter,
                           ConversionPatternRewriter &rewriter) {
   auto rankedTType = [](Value tensor) {
     return tensor.getType().cast<RankedTensorType>();

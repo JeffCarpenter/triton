@@ -9,7 +9,6 @@ using namespace mlir::triton;
 
 using ::AMD::ConvertTritonGPUOpToLLVMPattern;
 using ::AMD::ConvertTritonGPUOpToLLVMPatternBase;
-using ::AMD::TritonGPUToLLVMTypeConverter;
 using ::mlir::LLVM::getSharedMemoryObjectFromStruct;
 using ::mlir::triton::gpu::getTotalElemsPerThread;
 using ::mlir::triton::gpu::SharedEncodingAttr;
@@ -83,8 +82,7 @@ struct BroadcastOpConversion
     auto order = triton::gpu::getOrder(srcLayout);
     auto srcOffsets = emitOffsetForLayout(srcLayout, srcTy);
     auto resultOffsets = emitOffsetForLayout(resultLayout, resultTy);
-    SmallVector<Value> srcVals =
-        getTypeConverter()->unpackLLElements(loc, src, rewriter);
+    SmallVector<Value> srcVals = unpackLLElements(loc, src, rewriter);
 
     DenseMap<SmallVector<unsigned>, Value, SmallVectorKeyInfo> srcValues;
     for (size_t i = 0; i < srcOffsets.size(); i++) {
@@ -101,7 +99,7 @@ struct BroadcastOpConversion
     }
 
     Value resultStruct =
-        getTypeConverter()->packLLElements(loc, resultVals, rewriter, resultTy);
+        packLLElements(loc, getTypeConverter(), resultVals, rewriter, resultTy);
     rewriter.replaceOp(op, {resultStruct});
     return success();
   }
@@ -140,8 +138,7 @@ struct PrintOpConversion
     } else {
       for (size_t i = 0; i < op.getNumOperands(); i++) {
         // Elements of the tensor that are resident in this GPU thread.
-        auto elems = getTypeConverter()->unpackLLElements(
-            loc, adaptor.getOperands()[i], rewriter);
+        auto elems = unpackLLElements(loc, adaptor.getOperands()[i], rewriter);
 
         // Get the indices of `elems` within the tensor.  Note that if `elems`
         // has an "interesting" layout, then these will not be in any
@@ -407,8 +404,7 @@ struct AssertOpConversion
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     auto ctx = rewriter.getContext();
-    auto elems = getTypeConverter()->unpackLLElements(
-        loc, adaptor.getCondition(), rewriter);
+    auto elems = unpackLLElements(loc, adaptor.getCondition(), rewriter);
     auto elemTy = elems[0].getType();
     Value condition = int_val(elemTy.getIntOrFloatBitWidth(), 0);
     for (auto elem : elems) {
@@ -499,7 +495,7 @@ struct MakeRangeOpConversion
     : public ConvertTritonGPUOpToLLVMPattern<triton::MakeRangeOp> {
 
   MakeRangeOpConversion(
-      TritonGPUToLLVMTypeConverter &converter,
+      LLVMTypeConverter &converter,
       ConvertTritonGPUOpToLLVMPatternBase::IndexCacheInfo &indexCacheInfo,
       PatternBenefit benefit)
       : ConvertTritonGPUOpToLLVMPattern<triton::MakeRangeOp>(
@@ -527,7 +523,7 @@ struct MakeRangeOpConversion
       retVals[multiDim.index()] = add(multiDim.value()[0], start);
     }
     Value result =
-        getTypeConverter()->packLLElements(loc, retVals, rewriter, ty);
+        packLLElements(loc, getTypeConverter(), retVals, rewriter, ty);
     rewriter.replaceOp(op, result);
     return success();
   }
@@ -602,16 +598,14 @@ struct AddPtrOpConversion
                                               .getPointeeType());
       Type ptrTy =
           getTypeConverter()->convertType(resultTensorTy.getElementType());
-      auto ptrs =
-          getTypeConverter()->unpackLLElements(loc, adaptor.getPtr(), rewriter);
-      auto offsets = getTypeConverter()->unpackLLElements(
-          loc, adaptor.getOffset(), rewriter);
+      auto ptrs = unpackLLElements(loc, adaptor.getPtr(), rewriter);
+      auto offsets = unpackLLElements(loc, adaptor.getOffset(), rewriter);
       SmallVector<Value> resultVals(elems);
       for (unsigned i = 0; i < elems; ++i) {
         resultVals[i] = gep(ptrTy, elemTy, ptrs[i], offsets[i]);
       }
-      Value view = getTypeConverter()->packLLElements(loc, resultVals, rewriter,
-                                                      resultTy);
+      Value view = packLLElements(loc, getTypeConverter(), resultVals, rewriter,
+                                  resultTy);
       rewriter.replaceOp(op, view);
     } else {
       assert(resultTy.isa<triton::PointerType>());
@@ -789,8 +783,8 @@ struct AsyncBulkCommitGroupOpConversion
 
 namespace AMD {
 void populateTritonGPUToLLVMPatterns(
-    TritonGPUToLLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
-    int numWarps, ModuleAxisInfoAnalysis &axisInfoAnalysis,
+    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns, int numWarps,
+    ModuleAxisInfoAnalysis &axisInfoAnalysis,
     ModuleAllocation &moduleAllocation,
     ConvertTritonGPUOpToLLVMPatternBase::IndexCacheInfo &indexCacheInfo,
     PatternBenefit benefit) {

@@ -9,6 +9,7 @@ using namespace mlir::triton;
 using ::mlir::triton::gpu::BlockedEncodingAttr;
 using ::mlir::triton::gpu::DotOperandEncodingAttr;
 using ::mlir::triton::gpu::getTotalElemsPerThread;
+using ::mlir::triton::gpu::MfmaEncodingAttr;
 using ::mlir::triton::gpu::NvidiaMmaEncodingAttr;
 using ::mlir::triton::gpu::SharedEncodingAttr;
 using ::mlir::triton::gpu::SliceEncodingAttr;
@@ -75,6 +76,18 @@ Type TritonGPUToLLVMTypeConverter::getElementTypeForStruct(
   auto dotOpLayout = layout.dyn_cast<DotOperandEncodingAttr>();
   if (!dotOpLayout)
     return elemTy;
+  if (auto mfmaParent = dotOpLayout.getParent().dyn_cast<MfmaEncodingAttr>()) {
+    if (elemTy.isF32())
+      return elemTy;
+    if (elemTy.isInteger(16)) // aka BF16
+      return vec_ty(elemTy, dotOpLayout.getKWidth());
+    if (elemTy.isF16())
+      return vec_ty(elemTy, 4);
+    if (elemTy.isInteger(8) && dotOpLayout.getKWidth() == 4)
+      return IntegerType::get(ctx, 32);
+    if (elemTy.isInteger(8) && dotOpLayout.getKWidth() == 8)
+      return IntegerType::get(ctx, 64);
+  }
   auto mmaParent = dotOpLayout.getParent().dyn_cast<NvidiaMmaEncodingAttr>();
   if (!mmaParent || mmaParent.isHopper())
     return elemTy;
