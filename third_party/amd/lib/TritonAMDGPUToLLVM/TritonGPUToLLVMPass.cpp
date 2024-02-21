@@ -39,7 +39,8 @@
 #include "../lib/Conversion/TritonGPUToLLVM/TypeConverter.h"
 #include "TritonGPUToLLVM.h"
 #include "TritonGPUToLLVMBase.h"
-#include "ViewOpToLLVM.h"
+
+#include "../lib/Conversion/TritonGPUToLLVM/PatternTritonGPUOpToLLVM.h"
 
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 
@@ -462,6 +463,11 @@ struct ConvertTritonAMDGPUToLLVM
                    /*benefit*/ 10);
     };
 
+    auto populatePatterns5 = [&](auto populateFunc) {
+      populateFunc(typeConverter, patterns,
+                   /*benefit*/ 10);
+    };
+
     populatePatterns1(AMD::populateTritonGPUToLLVMPatterns);
     populatePatterns1(AMD::populateConvertLayoutOpToLLVMPatterns);
     populatePatterns2(AMD::populateDotOpToLLVMPatterns);
@@ -469,7 +475,7 @@ struct ConvertTritonAMDGPUToLLVM
     populatePatterns3(AMD::populateLoadStoreOpToLLVMPatterns);
     populatePatterns4(AMD::populateReduceOpToLLVMPatterns);
     populatePatterns1(AMD::populateScanOpToLLVMPatterns);
-    populatePatterns2(AMD::populateViewOpToLLVMPatterns);
+    populatePatterns5(mlir::triton::common::populateViewOpToLLVMPatterns);
 
     // TODO(thomas): this should probably be done in a separate step to not
     // interfere with our own lowering of arith ops. Add arith/math's patterns

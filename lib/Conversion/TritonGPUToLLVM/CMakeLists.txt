@@ -1,6 +1,11 @@
 add_triton_library(TritonGPUToLLVM
     ConvertLayoutOpToLLVM/SharedToDotOperandFMA.cpp
     DotOpToLLVM/FMA.cpp
+    ElementwiseOpToLLVM.cpp
+    MemoryOpToLLVM.cpp
+    AssertOpToLLVM.cpp
+    ViewOpToLLVM.cpp
+    MakeRangeOpToLLVM.cpp
     TypeConverter.cpp
     Utility.cpp
 

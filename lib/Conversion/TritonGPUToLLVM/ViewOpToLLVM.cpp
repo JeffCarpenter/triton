@@ -1,5 +1,5 @@
-#include "Utility.h"
 #include "PatternTritonGPUOpToLLVM.h"
+#include "Utility.h"
 #include "triton/Dialect/TritonGPU/IR/TritonGPUAttrDefs.cpp.inc"
 
 using namespace mlir;
@@ -390,7 +390,7 @@ struct BroadcastOpConversion
 
 } // namespace
 
-void mlir::triton::populateViewOpToLLVMPatterns(
+void mlir::triton::common::populateViewOpToLLVMPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
     PatternBenefit benefit) {
   patterns.add<ReshapeOpConversion>(typeConverter, benefit);

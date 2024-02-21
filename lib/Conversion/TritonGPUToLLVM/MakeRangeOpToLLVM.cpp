@@ -1,5 +1,5 @@
-#include "Utility.h"
 #include "PatternTritonGPUOpToLLVM.h"
+#include "Utility.h"
 
 namespace {
 
@@ -42,7 +42,7 @@ struct MakeRangeOpConversion
 
 } // namespace
 
-void mlir::triton::populateMakeRangeOpToLLVMPattern(
+void mlir::triton::common::populateMakeRangeOpToLLVMPattern(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
     PatternBenefit benefit) {
   patterns.add<MakeRangeOpConversion>(typeConverter, benefit);
