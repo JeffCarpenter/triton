@@ -60,14 +60,12 @@ Value convertLayout(int opIdx, ConversionPatternRewriter &rewriter,
 } // namespace SharedToDotOperandMFMA
 #endif
 
-namespace AMD {
 namespace SharedToDotOperandFMA {
 Value convertLayout(int opIdx, Value B, Value llB, BlockedEncodingAttr dLayout,
                     Value thread, Location loc,
                     const LLVMTypeConverter *typeConverter,
                     ConversionPatternRewriter &rewriter);
 }
-} // namespace AMD
 
 namespace {
 struct ConvertLayoutOpConversion
@@ -805,7 +803,7 @@ private:
       auto dotOpLayout =
           dstTensorTy.getEncoding().cast<DotOperandEncodingAttr>();
       auto thread = getThreadId(rewriter, loc);
-      res = AMD::SharedToDotOperandFMA::convertLayout(
+      res = SharedToDotOperandFMA::convertLayout(
           dotOpLayout.getOpIdx(), src, adaptor.getSrc(), blockedLayout, thread,
           loc, getTypeConverter(), rewriter);
     } else {

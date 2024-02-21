@@ -730,55 +730,6 @@ struct ExtractSliceOpConversion
   }
 };
 
-struct AsyncWaitOpConversion
-    : public ConvertTritonGPUOpToLLVMPattern<triton::gpu::AsyncWaitOp> {
-  using ConvertTritonGPUOpToLLVMPattern<
-      triton::gpu::AsyncWaitOp>::ConvertTritonGPUOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(triton::gpu::AsyncWaitOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    return success();
-  }
-};
-
-struct AsyncCommitGroupOpConversion
-    : public ConvertTritonGPUOpToLLVMPattern<triton::gpu::AsyncCommitGroupOp> {
-  using ConvertTritonGPUOpToLLVMPattern<
-      triton::gpu::AsyncCommitGroupOp>::ConvertTritonGPUOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(triton::gpu::AsyncCommitGroupOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    return success();
-  }
-};
-
-struct AsyncBulkWaitOpConversion
-    : public ConvertTritonGPUOpToLLVMPattern<triton::gpu::AsyncBulkWaitOp> {
-  using ConvertTritonGPUOpToLLVMPattern<
-      triton::gpu::AsyncBulkWaitOp>::ConvertTritonGPUOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(triton::gpu::AsyncBulkWaitOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    return success();
-  }
-};
-
-struct AsyncBulkCommitGroupOpConversion
-    : public ConvertTritonGPUOpToLLVMPattern<
-          triton::gpu::AsyncBulkCommitGroupOp> {
-  using ConvertTritonGPUOpToLLVMPattern<
-      triton::gpu::AsyncBulkCommitGroupOp>::ConvertTritonGPUOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(triton::gpu::AsyncBulkCommitGroupOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    return success();
-  }
-};
-
 } // namespace
 
 namespace AMD {
@@ -792,10 +743,6 @@ void populateTritonGPUToLLVMPatterns(
   patterns.add<AllocTensorOpConversion>(typeConverter, moduleAllocation,
                                         benefit);
   patterns.add<DeallocTensorOpConversion>(typeConverter, benefit);
-  patterns.add<AsyncCommitGroupOpConversion>(typeConverter, benefit);
-  patterns.add<AsyncWaitOpConversion>(typeConverter, benefit);
-  patterns.add<AsyncBulkCommitGroupOpConversion>(typeConverter, benefit);
-  patterns.add<AsyncBulkWaitOpConversion>(typeConverter, benefit);
   patterns.add<BroadcastOpConversion>(typeConverter, benefit);
   patterns.add<ExtractSliceOpConversion>(typeConverter, moduleAllocation,
                                          benefit);

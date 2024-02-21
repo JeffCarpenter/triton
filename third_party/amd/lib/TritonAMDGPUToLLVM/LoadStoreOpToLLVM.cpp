@@ -608,26 +608,6 @@ struct InsertSliceOpConversion
   }
 };
 
-struct InsertSliceAsyncOpConversion
-    : public ConvertTritonGPUOpToLLVMPattern<triton::gpu::InsertSliceAsyncOp>,
-      public LoadStoreConversionBase {
-  using ConvertTritonGPUOpToLLVMPattern<
-      triton::gpu::InsertSliceAsyncOp>::ConvertTritonGPUOpToLLVMPattern;
-
-  InsertSliceAsyncOpConversion(
-      LLVMTypeConverter &converter, ModuleAllocation &allocation,
-      ConvertTritonGPUOpToLLVMPatternBase::IndexCacheInfo &indexCacheInfo,
-      ModuleAxisInfoAnalysis &axisAnalysisPass, PatternBenefit benefit)
-      : ConvertTritonGPUOpToLLVMPattern<triton::gpu::InsertSliceAsyncOp>(
-            converter, allocation, indexCacheInfo, benefit),
-        LoadStoreConversionBase(axisAnalysisPass) {}
-
-  LogicalResult
-  matchAndRewrite(triton::gpu::InsertSliceAsyncOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    return success();
-  }
-};
 } // namespace
 
 namespace AMD {
@@ -644,7 +624,5 @@ void populateLoadStoreOpToLLVMPatterns(
                                       axisInfoAnalysis, benefit);
   patterns.add<InsertSliceOpConversion>(typeConverter, allocation,
                                         indexCacheInfo, benefit);
-  patterns.add<InsertSliceAsyncOpConversion>(
-      typeConverter, allocation, indexCacheInfo, axisInfoAnalysis, benefit);
 }
 } // namespace AMD

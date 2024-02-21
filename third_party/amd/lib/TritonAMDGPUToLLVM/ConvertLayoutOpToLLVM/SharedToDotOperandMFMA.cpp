@@ -22,7 +22,6 @@
  */
 #ifdef USE_ROCM
 
-#include "../ConvertLayoutOpToLLVM.h"
 #include "Utility.h"
 
 using ::mlir::triton::gpu::DotOperandEncodingAttr;
