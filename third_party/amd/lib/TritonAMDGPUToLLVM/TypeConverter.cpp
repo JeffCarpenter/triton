@@ -7,12 +7,14 @@ using namespace mlir;
 using namespace mlir::triton;
 
 using ::mlir::triton::gpu::BlockedEncodingAttr;
+using ::mlir::triton::gpu::MfmaEncodingAttr;
 using ::mlir::triton::gpu::DotOperandEncodingAttr;
 using ::mlir::triton::gpu::getTotalElemsPerThread;
 using ::mlir::triton::gpu::NvidiaMmaEncodingAttr;
 using ::mlir::triton::gpu::SharedEncodingAttr;
 using ::mlir::triton::gpu::SliceEncodingAttr;
 
+namespace AMD{
 TritonGPUToLLVMTypeConverter::TritonGPUToLLVMTypeConverter(
     MLIRContext *ctx, LowerToLLVMOptions &option,
     const DataLayoutAnalysis *analysis)
@@ -67,6 +69,55 @@ Type TritonGPUToLLVMTypeConverter::convertTritonPointerType(
   return LLVM::LLVMPointerType::get(ctx, type.getAddressSpace());
 }
 
+Value TritonGPUToLLVMTypeConverter::packLLElements(
+    Location loc, ValueRange resultVals, ConversionPatternRewriter &rewriter,
+    Type type) {
+  auto structType = this->convertType(type).dyn_cast<LLVM::LLVMStructType>();
+  if (!structType) {
+    assert(resultVals.size() == 1);
+    return *resultVals.begin();
+  }
+
+  auto elementTypes = structType.getBody();
+  if (elementTypes.size() != resultVals.size()) {
+    emitError(loc) << " size mismatch when packing elements for LLVM struct"
+                   << " expected " << elementTypes.size() << " but got "
+                   << resultVals.size();
+  }
+  Value llvmStruct = rewriter.create<LLVM::UndefOp>(loc, structType);
+  for (const auto &v : llvm::enumerate(resultVals)) {
+    if (!v.value()) {
+      emitError(loc)
+          << "cannot insert null values into struct, but tried to insert"
+          << v.value();
+    }
+    if (v.value().getType() != elementTypes[v.index()]) {
+      emitError(loc) << "invalid element type in packLLEElements. Expected "
+                     << elementTypes[v.index()] << " but got "
+                     << v.value().getType();
+    }
+    llvmStruct = insert_val(structType, llvmStruct, v.value(), v.index());
+  }
+  return llvmStruct;
+}
+
+SmallVector<Value> TritonGPUToLLVMTypeConverter::unpackLLElements(
+    Location loc, Value llvmStruct, ConversionPatternRewriter &rewriter) {
+  assert(bool(llvmStruct) && "can not unpack null values");
+  if (llvmStruct.getType().isIntOrIndexOrFloat() ||
+      llvmStruct.getType().isa<triton::PointerType>() ||
+      llvmStruct.getType().isa<LLVM::LLVMPointerType>())
+    return {llvmStruct};
+  ArrayRef<Type> types =
+      llvmStruct.getType().cast<LLVM::LLVMStructType>().getBody();
+  SmallVector<Value> results(types.size());
+  for (unsigned i = 0; i < types.size(); ++i) {
+    Type type = types[i];
+    results[i] = extract_val(type, llvmStruct, i);
+  }
+  return results;
+}
+
 Type TritonGPUToLLVMTypeConverter::getElementTypeForStruct(
     RankedTensorType type) {
   auto ctx = type.getContext();
@@ -75,6 +126,20 @@ Type TritonGPUToLLVMTypeConverter::getElementTypeForStruct(
   auto dotOpLayout = layout.dyn_cast<DotOperandEncodingAttr>();
   if (!dotOpLayout)
     return elemTy;
+#ifdef USE_ROCM
+  if (auto mfmaParent = dotOpLayout.getParent().dyn_cast<MfmaEncodingAttr>()) {
+    if (elemTy.isF32())
+      return elemTy;
+    if (elemTy.isInteger(16)) // aka BF16
+      return vec_ty(elemTy, dotOpLayout.getKWidth());
+    if (elemTy.isF16())
+      return vec_ty(elemTy, 4);
+    if (elemTy.isInteger(8) && dotOpLayout.getKWidth() == 4)
+      return IntegerType::get(ctx, 32);
+    if (elemTy.isInteger(8) && dotOpLayout.getKWidth() == 8)
+      return IntegerType::get(ctx, 64);
+  }
+#endif
   auto mmaParent = dotOpLayout.getParent().dyn_cast<NvidiaMmaEncodingAttr>();
   if (!mmaParent || mmaParent.isHopper())
     return elemTy;
@@ -107,4 +172,5 @@ Type TritonGPUToLLVMTypeConverter::convertTritonTensorType(
   unsigned numElementsPerThread = getTotalElemsPerThread(type);
   SmallVector<Type, 4> types(numElementsPerThread, eltType);
   return LLVM::LLVMStructType::getLiteral(ctx, types);
+}
 }

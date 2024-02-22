@@ -10,7 +10,7 @@ using ::mlir::triton::gpu::DotOperandEncodingAttr;
 
 namespace AMD{
 void populateConvertLayoutOpToLLVMPatterns(
-    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
+    TritonGPUToLLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
     int numWarps, ModuleAxisInfoAnalysis &axisInfoAnalysis,
     ModuleAllocation &allocation,
     ConvertTritonGPUOpToLLVMPatternBase::IndexCacheInfo &indexCacheInfo,

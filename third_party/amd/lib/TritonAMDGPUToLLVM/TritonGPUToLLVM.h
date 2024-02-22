@@ -8,7 +8,7 @@ using namespace mlir::triton;
 
 namespace AMD {
 void populateTritonGPUToLLVMPatterns(
-    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
+    TritonGPUToLLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
     int numWarps, ModuleAxisInfoAnalysis &axisInfoAnalysis,
     ModuleAllocation &allocation,
     ConvertTritonGPUOpToLLVMPatternBase::IndexCacheInfo &indexCacheInfo,

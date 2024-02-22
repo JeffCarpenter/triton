@@ -7,6 +7,7 @@ using namespace mlir::triton;
 
 using ::AMD::ConvertTritonGPUOpToLLVMPattern;
 using ::AMD::ConvertTritonGPUOpToLLVMPatternBase;
+using ::AMD::TritonGPUToLLVMTypeConverter;
 using ::mlir::LLVM::delinearize;
 using ::mlir::LLVM::linearize;
 using ::mlir::LLVM::AMD::shflIdxSync;
@@ -424,13 +425,13 @@ ScanOpConversion::getDelinearizedIds(ConversionPatternRewriter &rewriter,
 SmallVector<SmallVector<Value>>
 unpackInputs(Location loc, triton::ScanOp op, triton::ScanOpAdaptor adaptor,
              ConversionPatternRewriter &rewriter,
-             const LLVMTypeConverter &converter) {
+             TritonGPUToLLVMTypeConverter &converter) {
   auto types = op.getInputTypes();
   auto operands = adaptor.getOperands();
   unsigned srcElems = getTotalElemsPerThread(types[0]);
   SmallVector<SmallVector<Value>> srcValues(srcElems);
   for (unsigned i = 0; i < op.getNumOperands(); ++i) {
-    auto values = unpackLLElements(loc, operands[i], rewriter);
+    auto values = converter.unpackLLElements(loc, operands[i], rewriter);
 
     assert(values.size() == srcValues.size());
     for (unsigned j = 0; j < srcValues.size(); ++j) {
@@ -517,8 +518,8 @@ ScanOpConversion::emitFastScan(triton::ScanOp op, triton::ScanOpAdaptor adaptor,
   auto valuesTransposed = transpose(srcValues);
   for (unsigned i = 0; i < op.getNumOperands(); ++i) {
     auto resultTy = op.getResult()[i].getType().dyn_cast<RankedTensorType>();
-    results[i] = packLLElements(loc, getTypeConverter(), valuesTransposed[i],
-                                rewriter, resultTy);
+    results[i] = getTypeConverter()->packLLElements(loc, valuesTransposed[i],
+                                                    rewriter, resultTy);
   }
   rewriter.replaceOp(op, results);
   return success();
@@ -526,8 +527,9 @@ ScanOpConversion::emitFastScan(triton::ScanOp op, triton::ScanOpAdaptor adaptor,
 } // namespace
 
 void populateScanOpToLLVMPatterns(
-    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns, int numWarps,
-    ModuleAxisInfoAnalysis &axisInfoAnalysis, ModuleAllocation &allocation,
+    TritonGPUToLLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
+    int numWarps, ModuleAxisInfoAnalysis &axisInfoAnalysis,
+    ModuleAllocation &allocation,
     ConvertTritonGPUOpToLLVMPatternBase::IndexCacheInfo &indexCacheInfo,
     PatternBenefit benefit) {
   patterns.add<ScanOpConversion>(typeConverter, allocation, indexCacheInfo,

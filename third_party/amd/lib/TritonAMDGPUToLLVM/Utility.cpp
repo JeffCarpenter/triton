@@ -1,6 +1,6 @@
 #include "Utility.h"
-#include "../lib/Conversion/TritonGPUToLLVM/TypeConverter.h"
 #include "TritonGPUToLLVMBase.h"
+#include "TypeConverter.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
 #include "triton/Dialect/NVGPU/IR/Dialect.h"

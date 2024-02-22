@@ -9,6 +9,7 @@ using namespace mlir::triton;
 
 using ::AMD::ConvertTritonGPUOpToLLVMPattern;
 using ::AMD::ConvertTritonGPUOpToLLVMPatternBase;
+using ::AMD::TritonGPUToLLVMTypeConverter;
 using ::mlir::LLVM::getSharedMemoryObjectFromStruct;
 using ::mlir::triton::gpu::getTotalElemsPerThread;
 using ::mlir::triton::gpu::SharedEncodingAttr;
@@ -79,7 +80,8 @@ struct PrintOpConversion
     } else {
       for (size_t i = 0; i < op.getNumOperands(); i++) {
         // Elements of the tensor that are resident in this GPU thread.
-        auto elems = unpackLLElements(loc, adaptor.getOperands()[i], rewriter);
+        auto elems = getTypeConverter()->unpackLLElements(
+            loc, adaptor.getOperands()[i], rewriter);
 
         // Get the indices of `elems` within the tensor.  Note that if `elems`
         // has an "interesting" layout, then these will not be in any
@@ -447,8 +449,8 @@ struct ExtractSliceOpConversion
 
 namespace AMD {
 void populateTritonGPUToLLVMPatterns(
-    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns, int numWarps,
-    ModuleAxisInfoAnalysis &axisInfoAnalysis,
+    TritonGPUToLLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
+    int numWarps, ModuleAxisInfoAnalysis &axisInfoAnalysis,
     ModuleAllocation &moduleAllocation,
     ConvertTritonGPUOpToLLVMPatternBase::IndexCacheInfo &indexCacheInfo,
     PatternBenefit benefit) {

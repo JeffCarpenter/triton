@@ -10,6 +10,7 @@ add_triton_library(TritonAMDGPUToLLVM
     TritonGPUToLLVMPass.cpp
     ReduceOpToLLVM.cpp
     ScanOpToLLVM.cpp
+    TypeConverter.cpp
     Utility.cpp
 
     DEPENDS

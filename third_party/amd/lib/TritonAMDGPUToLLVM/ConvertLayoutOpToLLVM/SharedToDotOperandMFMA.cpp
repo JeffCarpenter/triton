@@ -24,11 +24,12 @@
 
 #include "Utility.h"
 
+using ::mlir::triton::gpu::MfmaEncodingAttr;
 using ::mlir::triton::gpu::DotOperandEncodingAttr;
 using ::mlir::triton::gpu::getOrder;
 using ::mlir::triton::gpu::getShapePerCTA;
-using ::mlir::triton::gpu::MfmaEncodingAttr;
 using ::mlir::triton::gpu::SharedEncodingAttr;
+using ::AMD::TritonGPUToLLVMTypeConverter;
 
 namespace {
 
@@ -343,12 +344,11 @@ bool fastPathAvailable(const SharedMemoryObject &smemObj,
 // @param cSwizzleOffset
 llvm::SmallVector<Value>
 fastPathComputeOffsetsTy1(ConversionPatternRewriter &rewriter, Location loc,
-                          const ArrayRef<int64_t> &elemsPerInstr, Value waveId,
-                          Value laneId, int warpsPerGroup, int numOfElems,
-                          ArrayRef<int64_t> reps, Value cSwizzleOffset) {
+                  const ArrayRef<int64_t> &elemsPerInstr, Value waveId,
+                  Value laneId, int warpsPerGroup, int numOfElems,
+                  ArrayRef<int64_t> reps, Value cSwizzleOffset) {
   const int loadVecSize = numOfElems;
-  const int loadsPerThread =
-      1; // 1 is just in case if we decide to use different loadVecSize
+  const int loadsPerThread = 1; // 1 is just in case if we decide to use different loadVecSize
   auto numM = reps[0];
   auto numK = reps[1];
   SmallVector<Value> offsets(numM * numK * loadsPerThread);
@@ -366,13 +366,12 @@ fastPathComputeOffsetsTy1(ConversionPatternRewriter &rewriter, Location loc,
     for (int tile = 0; tile < numK; ++tile) {
       Value tileOffset = i32_val(tile * elemsPerInstr[1]);
       for (int loadId = 0; loadId < loadsPerThread; ++loadId) {
-        Value rowOffset = add(mul(urem(laneId, _32), i32_val(lineSize)),
-                              i32_val(loadId * loadVecSize));
+        Value rowOffset =
+            add(mul(urem(laneId, _32), i32_val(lineSize)), i32_val(loadId * loadVecSize));
         Value elemOffset = add(rowOffset, colOffset);
         Value offset =
             add(add(add(waveOffset, blockOffset), tileOffset), elemOffset);
-        offsets[numK * loadsPerThread * block + loadsPerThread * tile +
-                loadId] = offset;
+        offsets[numK * loadsPerThread * block + loadsPerThread * tile + loadId] = offset;
       }
     }
   }
@@ -430,7 +429,7 @@ bool isTransposed(::llvm::ArrayRef<unsigned> order) {
 
 Value loadA(ConversionPatternRewriter &rewriter, Location loc, Value thread,
             DotOperandEncodingAttr encoding,
-            const LLVMTypeConverter *typeConverter, Value tensor,
+            TritonGPUToLLVMTypeConverter *typeConverter, Value tensor,
             const SharedMemoryObject &smemObj) {
   auto mfmaLayout = encoding.getParent().cast<MfmaEncodingAttr>();
   auto nonKDim = mfmaLayout.getNonKDim();
@@ -498,8 +497,8 @@ Value loadA(ConversionPatternRewriter &rewriter, Location loc, Value thread,
         Value valVec = undef(vecTy);
         for (unsigned loadId = 0; loadId < loadsPerThread; ++loadId) {
           auto loadVecTy = vec_ty(aElemTy, elemsPerLoad);
-          Value loadOffset = offsets[m * loadsPerThread * numRepK +
-                                     k * loadsPerThread + loadId];
+          Value loadOffset =
+              offsets[m * loadsPerThread * numRepK + k * loadsPerThread + loadId];
           Value loadAddress = gep(smemPtrTy, smemElemTy, smemBase, loadOffset);
           Value vectorValue = load(loadVecTy, loadAddress);
           if (numOfElems > 1) {
@@ -529,6 +528,7 @@ Value loadA(ConversionPatternRewriter &rewriter, Location loc, Value thread,
 
     Value smemBase = computeBasePtr(rewriter, loc, smemObj);
     Type resElemTy = typeConverter->convertType(aElemTy);
+
 
     int loadsPerThread = offsets.size() / (numReps[0] * numReps[1]);
     int elemsPerLoad = numOfElems / loadsPerThread;
@@ -568,13 +568,13 @@ Value loadA(ConversionPatternRewriter &rewriter, Location loc, Value thread,
   MLIRContext *ctx = mfmaLayout.getContext();
   Type structTy = LLVM::LLVMStructType::getLiteral(
       ctx, SmallVector<Type>(ha.size(), ha[0].getType()));
-  auto result = packLLElements(loc, typeConverter, ha, rewriter, structTy);
+  auto result = typeConverter->packLLElements(loc, ha, rewriter, structTy);
   return result;
 }
 
 Value loadB(ConversionPatternRewriter &rewriter, Location loc, Value thread,
             DotOperandEncodingAttr encoding,
-            const LLVMTypeConverter *typeConverter, Value tensor,
+            TritonGPUToLLVMTypeConverter *typeConverter, Value tensor,
             const SharedMemoryObject &smemObj) {
   auto mfmaLayout = encoding.getParent().cast<MfmaEncodingAttr>();
   auto nonKDim = mfmaLayout.getNonKDim();
@@ -646,8 +646,8 @@ Value loadB(ConversionPatternRewriter &rewriter, Location loc, Value thread,
         Value valVec = undef(vecTy);
         for (unsigned loadId = 0; loadId < loadsPerThread; ++loadId) {
           auto loadVecTy = vec_ty(bElemTy, elemsPerLoad);
-          Value loadOffset = offsets[n * loadsPerThread * numRepK +
-                                     k * loadsPerThread + loadId];
+          Value loadOffset =
+              offsets[n * loadsPerThread * numRepK + k * loadsPerThread + loadId];
           Value loadAddress = gep(smemPtrTy, smemElemTy, smemBase, loadOffset);
           Value vectorValue = load(loadVecTy, loadAddress);
           if (numOfElems > 1) {
@@ -715,14 +715,14 @@ Value loadB(ConversionPatternRewriter &rewriter, Location loc, Value thread,
   MLIRContext *ctx = mfmaLayout.getContext();
   Type structTy = LLVM::LLVMStructType::getLiteral(
       ctx, SmallVector<Type>(hb.size(), hb[0].getType()));
-  auto result = packLLElements(loc, typeConverter, hb, rewriter, structTy);
+  auto result = typeConverter->packLLElements(loc, hb, rewriter, structTy);
   return result;
 }
 
 Value convertLayout(int opIdx, ConversionPatternRewriter &rewriter,
                     Location loc, Value tensor, DotOperandEncodingAttr encoding,
                     const SharedMemoryObject &smemObj,
-                    const LLVMTypeConverter *typeConverter, Value thread) {
+                    TritonGPUToLLVMTypeConverter *typeConverter, Value thread) {
   switch (opIdx) {
   case 0:
     // operand $a

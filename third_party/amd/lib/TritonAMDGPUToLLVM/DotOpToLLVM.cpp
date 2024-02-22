@@ -6,18 +6,19 @@ using namespace mlir::triton;
 
 using ::AMD::ConvertTritonGPUOpToLLVMPattern;
 using ::AMD::ConvertTritonGPUOpToLLVMPatternBase;
+using ::AMD::TritonGPUToLLVMTypeConverter;
 using ::mlir::LLVM::getSharedMemoryObjectFromStruct;
 using ::mlir::triton::gpu::DotOperandEncodingAttr;
 using ::mlir::triton::gpu::getShapePerCTA;
 using ::mlir::triton::gpu::NvidiaMmaEncodingAttr;
 
 LogicalResult convertFMADot(triton::DotOp op, triton::DotOp::Adaptor adaptor,
-                            const LLVMTypeConverter *typeConverter,
+                            TritonGPUToLLVMTypeConverter *typeConverter,
                             ConversionPatternRewriter &rewriter);
 namespace AMD {
 #ifdef USE_ROCM
 LogicalResult convertMFMA(triton::DotOp op, triton::DotOp::Adaptor adaptor,
-                          const LLVMTypeConverter *typeConverter,
+                          TritonGPUToLLVMTypeConverter *typeConverter,
                           ConversionPatternRewriter &rewriter);
 #endif
 } // namespace AMD
@@ -169,7 +170,7 @@ struct DotWaitOpConversion
 } // namespace
 
 namespace AMD {
-void populateDotOpToLLVMPatterns(LLVMTypeConverter &typeConverter,
+void populateDotOpToLLVMPatterns(TritonGPUToLLVMTypeConverter &typeConverter,
                                  RewritePatternSet &patterns, int numWarps,
                                  ModuleAxisInfoAnalysis &axisInfoAnalysis,
                                  ModuleAllocation &allocation,

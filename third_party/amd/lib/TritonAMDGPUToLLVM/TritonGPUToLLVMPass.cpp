@@ -36,11 +36,11 @@
 // #include "RegReallocOpToLLVM.h"
 #include "ScanOpToLLVM.h"
 // #include "TensorPtrOpsToLLVM.h"
-#include "../lib/Conversion/TritonGPUToLLVM/TypeConverter.h"
 #include "TritonGPUToLLVM.h"
 #include "TritonGPUToLLVMBase.h"
 
 #include "../lib/Conversion/TritonGPUToLLVM/PatternTritonGPUOpToLLVM.h"
+#include "TypeConverter.h"
 
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 
@@ -56,6 +56,7 @@ using namespace mlir::triton;
 namespace ttng = mlir::triton::nvidia_gpu;
 using ::AMD::ConvertTritonGPUOpToLLVMPattern;
 using ::AMD::ConvertTritonGPUOpToLLVMPatternBase;
+using ::AMD::TritonGPUToLLVMTypeConverter;
 
 namespace {
 
@@ -360,7 +361,7 @@ struct ConvertTritonAMDGPUToLLVM
     ModuleOp mod = getOperation();
     mlir::LowerToLLVMOptions option(context);
     option.overrideIndexBitwidth(32);
-    LLVMTypeConverter typeConverter(context, option);
+    TritonGPUToLLVMTypeConverter typeConverter(context, option);
     TritonLLVMConversionTarget convTarget(*context, target);
     int numWarps = triton::gpu::TritonGPUDialect::getNumWarps(mod);
     int numCTAs = triton::gpu::TritonGPUDialect::getNumCTAs(mod);
@@ -393,7 +394,7 @@ struct ConvertTritonAMDGPUToLLVM
     // Lower functions
     {
       mlir::LowerToLLVMOptions option(context);
-      LLVMTypeConverter typeConverter(context, option);
+      TritonGPUToLLVMTypeConverter typeConverter(context, option);
       TritonLLVMFunctionConversionTarget funcTarget(*context, target);
       RewritePatternSet funcPatterns(context);
       funcPatterns.add<FuncOpConversion>(typeConverter, numWarps, allocation,
@@ -413,7 +414,7 @@ struct ConvertTritonAMDGPUToLLVM
     // Convert call and ret ops
     {
       mlir::LowerToLLVMOptions option(context);
-      LLVMTypeConverter typeConverter(context, option);
+      TritonGPUToLLVMTypeConverter typeConverter(context, option);
       TritonLLVMFunctionConversionTarget funcTarget(*context, target);
       RewritePatternSet funcPatterns(context);
       funcPatterns.add<CallOpConversion>(typeConverter, numWarps, allocation,
@@ -517,7 +518,7 @@ private:
            CacheKeyDenseMapInfo>
       indexCache;
   void initSharedMemory(ModuleAllocation &allocation,
-                        LLVMTypeConverter &typeConverter) {
+                        TritonGPUToLLVMTypeConverter &typeConverter) {
     ModuleOp mod = getOperation();
     OpBuilder b(mod.getBodyRegion());
     auto ctx = mod.getContext();

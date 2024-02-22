@@ -7,7 +7,7 @@ using namespace mlir;
 using namespace mlir::triton;
 
 namespace AMD{
-void populateDotOpToLLVMPatterns(LLVMTypeConverter &typeConverter,
+void populateDotOpToLLVMPatterns(TritonGPUToLLVMTypeConverter &typeConverter,
                                  RewritePatternSet &patterns, int numWarps,
                                  ModuleAxisInfoAnalysis &axisInfoAnalysis,
                                  ModuleAllocation &allocation,
