@@ -1,13 +1,5 @@
 name: LLVM Build
 
-on:
-  push:
-    branches:
-      - llvm-head
-    paths:
-      - cmake/llvm-hash.txt
-  workflow_dispatch:
-
 env:
   SCCACHE_DIR: ${{ github.workspace }}/sccache
 
