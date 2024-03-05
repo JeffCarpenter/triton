@@ -30,17 +30,13 @@ jobs:
 
     - name: Fetch LLVM Commit Hash
       run: |
-        $LLVM_COMMIT_HASH="$(cat llvm-build/cmake/llvm-hash.txt)"
-        echo "Found LLVM commit hash: ${LLVM_COMMIT_HASH}"
-        echo "llvm_commit_hash=${LLVM_COMMIT_HASH}" >> ${GITHUB_ENV}
-
-        $SHORT_LLVM_COMMIT_HASH="${LLVM_COMMIT_HASH:0:8}"
-        echo "Short LLVM commit hash: ${SHORT_LLVM_COMMIT_HASH}"
-        echo "short_llvm_commit_hash=${SHORT_LLVM_COMMIT_HASH}" >> ${GITHUB_ENV}
-
-        $INSTALL_DIR="llvm-${SHORT_LLVM_COMMIT_HASH}-${{ matrix.config.target-os }}-${{ matrix.config.arch }}"
-        echo "LLVM installation directory name: ${INSTALL_DIR}"
-        echo "llvm_install_dir=${INSTALL_DIR}" >> ${GITHUB_ENV}
+        echo "llvm_commit_hash=$(cat llvm-build/cmake/llvm-hash.txt)" >> ${GITHUB_ENV}
+    - name: Set LLVM Short Commit Hash
+      run: |
+        echo "short_llvm_commit_hash=${llvm_commit_hash:0:8}" >> ${GITHUB_ENV}
+    - name: Set LLVM Install Dir
+      run: |
+        echo "llvm_install_dir=llvm-${short_llvm_commit_hash}-${{ matrix.config.target-os }}-${{ matrix.config.arch }}" >> ${GITHUB_ENV}
 
     - name: Checkout LLVM
       uses: actions/checkout@v3
